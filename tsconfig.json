@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    // "target": "ES6",            // 编译目标
+    "module": "commonjs",       // 模块系统
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "outDir": "./public/dist" ,
+    "strict": true,
+    "target": "ESNext",
+    // "module": "ESNext",
+    "moduleResolution": "node",
+    "allowSyntheticDefaultImports": true,
+    // "esModuleInterop": true,
+    "jsx": "react-jsx",
+    "jsxImportSource": "solid-js",
+    "noEmit": true,
+    "isolatedModules": true
+  },
+  "include": ["src/**/*.ts","src/**/*.tsx","naf.d.ts"],  
+  // "exclude": ["node_modules"],
+}
