@@ -1,0 +1,211 @@
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+@import './colors.css';
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Poppins:wght@400;600;700&display=swap');
+
+@layer base {
+  body, input, textarea, select, button {
+    @apply font-sans text-base text-gray-900;
+    font-family: 'Inter', sans-serif;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-bold text-gray-900;
+    font-family: 'Poppins', sans-serif;
+    text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+  }
+
+  a {
+    @apply text-sky-800 transition-colors duration-300;
+    font-family: 'Inter', sans-serif;
+  }
+
+  a:hover {
+    @apply text-sky-700 underline;
+  }
+
+  @screen sm {
+    body, input, textarea, select, button {
+      @apply text-sm;
+    }
+
+    h1 {
+      @apply text-3xl;
+    }
+
+    h2 {
+      @apply text-2xl;
+    }
+  }
+
+  @screen md {
+    body, input, textarea, select, button {
+      @apply text-base;
+    }
+
+    h1 {
+      @apply text-4xl;
+    }
+
+    h2 {
+      @apply text-3xl;
+    }
+  }
+}
+
+@layer components {
+  .form-input:focus,
+  .form-textarea:focus,
+  .form-select:focus,
+  .form-multiselect:focus {
+    --tw-ring-color: var(--btn-primary-bg);
+    border-color: var(--btn-primary-bg);
+    @apply shadow-lg;
+  }
+
+  .form-checkbox,
+  .form-radio {
+    color: var(--btn-primary-bg);
+  }
+
+  .form-checkbox:focus,
+  .form-radio:focus {
+    --tw-ring-color: var(--btn-primary-bg);
+  }
+
+  .bg-panel {
+    background-color: var(--panel-bg);
+    background-image: url('../zalfa-imani-1xp5VxvyKL0-unsplash.jpg'); 
+    background-size: cover; 
+    background-position: center; 
+    background-repeat: no-repeat;
+    color: var(--panel-text);
+    @apply p-6 rounded-lg shadow-md;
+  }
+
+  .btn {
+    @apply inline-block p-2 font-bold shadow-md transition duration-150 ease-in-out;
+    background-color: var(--btn-primary-bg);
+    color: var(--btn-primary-text);
+    border-radius: var(--btn-border-radius);
+    font-family: 'Inter', sans-serif;
+    @apply transform hover:scale-105;
+
+    &:hover,
+    &.hover {
+      background-color: var(--btn-primary-bg-hover);
+      @apply shadow-lg;
+    }
+  }
+
+  .btn-secondary {
+    @apply btn;
+    background-color: var(--btn-secondary-bg);
+    color: var(--btn-secondary-text);
+
+    &:hover,
+    &.hover {
+      background-color: var(--btn-secondary-bg-hover);
+    }
+
+    &.active {
+      background-color: var(--btn-primary-bg);
+    }
+  }
+
+  .btn-rounded {
+    @apply rounded-full;
+  }
+
+  .btn-in-input {
+    @apply text-gray-600;
+    &:hover {
+      color: var(--btn-primary-bg-hover);
+      @apply underline;
+    }
+    &[disabled],
+    &[disabled]:hover {
+      @apply text-gray-400 cursor-not-allowed;
+    }
+  }
+
+  .animation-ping {
+    animation: ping 1s cubic-bezier(0, 0, 0.2, 1) infinite;
+  }
+
+  @keyframes ping {
+    75%,
+    100% {
+      transform: scale(2);
+      opacity: 0;
+    }
+  }
+
+  .counter {
+    @apply absolute -right-2 bottom-0 flex h-6 w-6 select-none items-center justify-center rounded-full border-2 border-gray-300 text-sm;
+    background-color: var(--btn-secondary-bg);
+    color: var(--btn-secondary-text);
+    font-family: 'Inter', sans-serif;
+    @apply shadow-sm;
+  }
+
+  .counter-red {
+    @apply counter border-red-600 bg-red-600 text-white;
+  }
+
+  .naf-centered-fullscreen {
+    @apply bg-panel absolute inset-0 z-10 flex flex-col items-center justify-center gap-2;
+  }
+
+
+  .naf-bar {
+    @apply pointer-events-none absolute z-10 flex w-full items-center gap-4 [&>*]:pointer-events-auto;
+  }
+
+  .naf-top-bar-left {
+    @apply naf-bar left-6 top-6 justify-start;
+  }
+
+  .naf-top-bar-center {
+    @apply naf-bar top-6 justify-center;
+  }
+
+  .naf-top-bar-right {
+    @apply naf-bar right-6 top-6 justify-end;
+  }
+
+  .naf-bottom-bar-left {
+    @apply naf-bar bottom-6 left-6 justify-start;
+  }
+
+  .naf-bottom-bar-center {
+    @apply naf-bar bottom-6 justify-center;
+  }
+
+  .naf-bottom-bar-right {
+    @apply naf-bar bottom-6 right-6 justify-end;
+  }
+
+  .title-center {
+    position: absolute;
+    top: 15%; 
+    left: 50%; 
+    transform: translate(-50%, -50%);
+    font-size: 3rem;
+    font-weight: bold;
+    text-align: center;
+    color: var(--panel-text, #000); 
+    font-family: 'Poppins', sans-serif;
+    background: linear-gradient(90deg,#ffffff, #f0f0f0);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    @apply transition-transform duration-300 ease-in-out;
+
+    &:hover {
+      transform: translate(-50%, -50%) scale(1.05);
+      text-shadow: 4px 4px 8px rgba(0, 0, 0, 0.2);
+    }
+  }
+}
