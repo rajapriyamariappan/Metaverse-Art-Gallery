@@ -1,0 +1,400 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Realistic avatars — Networked-Aframe</title>
+    <meta name="description" content="Realistic avatars — Networked-Aframe" />
+
+    <!-- <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script> -->
+    <script src="https://cdn.jsdelivr.net/gh/aframevr/aframe@40b81e61bc47d1fa83d244fc27234f87bfd05394/dist/aframe-master.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.5.0/socket.io.slim.js"></script>
+    <script src="/easyrtc/easyrtc.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/networked-aframe@0.12.3/dist/networked-aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@7.5.0/dist/aframe-extras.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/aframe-environment-component@1.3.7/dist/aframe-environment-component.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@fern-solutions/aframe-mirror@1.1.1/dist/mirror.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-cursor-teleport@1.6.0/dist/aframe-cursor-teleport-component.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/aframe-blink-controls@0.4.3/dist/aframe-blink-controls.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/AdaRoseCannon/aframe-xr-boilerplate@bca4792/simple-navmesh-constraint.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-gltf-model-plus@1.0.0/dist/gltf-model-plus.min.js"></script>
+    <script src="https://unpkg.com/react/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom/umd/react-dom.development.js"></script>
+    <!-- jQuery from Google CDN -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <!-- <script src="https://unpkg.com/aframe-particle-system-component/dist/aframe-particle-system-component.min.js"></script> -->
+
+    <script src="/dist/components.js"></script>
+    <script defer src="/dist/ui.js"></script>
+
+    <!-- Rate-counter component from the original code -->
+    <script>
+      AFRAME.registerComponent('override-materials', {
+    init: function () {
+      this.el.addEventListener('model-loaded', () => {
+        this.el.getObject3D('mesh').traverse((child) => {
+          if (child.isMesh) {
+            // Override material properties
+            child.material.transparent = false;
+            child.material.opacity = 1.0;
+            child.material.side = THREE.DoubleSide; // or THREE.FrontSide
+            child.material.alphaTest = 1.0;
+            child.material.depthWrite = true;
+            child.material.polygonOffset = true;
+            child.material.polygonOffsetFactor = 1;
+            child.material.polygonOffsetUnits = 1;
+            child.material.needsUpdate = true;
+          }
+        });
+      });
+    }
+  });
+      AFRAME.registerComponent('rate-counter', {
+        schema: { likes: { type: 'int', default: 0 }, dislikes: { type: 'int', default: 0 } },
+
+        init: function () {
+          console.log('rate-counter initialized successfully');
+
+          this.comments = []; // Store comment list
+
+          this.commentButton = document.querySelector('#comment-button');
+          this.commentList = document.querySelector('#comment-list');
+          this.commentContent = document.querySelector('#comment-content');
+          this.inputPlane = document.querySelector('#input-plane');
+          this.submitButton = document.querySelector('#submit-comment-button');
+
+          this.likeButton = document.querySelector('#like-button');
+          this.dislikeButton = document.querySelector('#dislike-button');
+          this.likeCountText = document.querySelector('.like-count');
+          this.dislikeCountText = document.querySelector('.dislike-count');
+
+          NAF.connection.subscribeToDataChannel('rate-update', (senderId, dataType, data, targetId) => {
+            console.log('Received full data:', { senderId, dataType, data, targetId });
+            try {
+              if (typeof data === 'string') {
+                const parsedData = JSON.parse(data);
+                if (parsedData.type === 'rate-update') {
+                  console.log('Parsed data:', parsedData);
+                  if (parsedData.likes !== undefined) this.data.likes = parsedData.likes;
+                  if (parsedData.dislikes !== undefined) this.data.dislikes = parsedData.dislikes;
+                  this.updateUI();
+                } else {
+                  console.warn('Unexpected data type:', parsedData);
+                }
+              } else {
+                console.warn('Received non-JSON format data:', data);
+              }
+            } catch (e) {
+              console.error('Failed to parse data:', e, data);
+            }
+          });
+
+          this.commentButton.addEventListener('click', () => this.toggleCommentUI());
+          this.submitButton.addEventListener('click', () => this.submitComment());
+
+          NAF.connection.subscribeToDataChannel('comments-update', (senderId, dataType, data) => {
+            try {
+              const parsedData = JSON.parse(data);
+              if (parsedData.type === 'comment') {
+                this.comments.push(parsedData.comment);
+                this.updateCommentList();
+              }
+            } catch (e) {
+              console.error('Failed to parse comment data:', e, data);
+            }
+          });
+
+          this.likeButton.addEventListener('click', () => this.updateCount('like'));
+          this.dislikeButton.addEventListener('click', () => this.updateCount('dislike'));
+        },
+
+        updateCount: function (type) {
+          if (type === 'like') this.data.likes++;
+          if (type === 'dislike') this.data.dislikes++;
+
+          console.log('Broadcasting data:', { likes: this.data.likes, dislikes: this.data.dislikes });
+
+          NAF.connection.broadcastDataGuaranteed('rate-update', JSON.stringify({
+            type: 'rate-update',
+            likes: this.data.likes,
+            dislikes: this.data.dislikes
+          }));
+
+          this.updateUI();
+        },
+
+        toggleCommentUI: function () {
+          const visible = this.commentList.getAttribute('visible');
+          this.commentList.setAttribute('visible', !visible);
+          this.inputPlane.setAttribute('visible', !visible);
+          this.submitButton.setAttribute('visible', !visible);
+        },
+
+        submitComment: function () {
+          const nametag = document.querySelector('.nametag');
+          const username = nametag ? nametag.getAttribute('value') : 'Anonymous';
+
+          const inputText = prompt("Enter your comment:");
+          if (inputText && inputText.trim() !== '') {
+            const comment =`${username}: ${inputText}`;
+            this.comments.push(comment);
+            this.updateCommentList();
+
+            NAF.connection.broadcastDataGuaranteed('comments-update', JSON.stringify({
+              type: 'comment',
+              comment: comment
+            }));
+          }
+        },
+
+        updateCommentList: function () {
+          const formattedComments = this.comments.join('\n');
+          this.commentContent.setAttribute('value', formattedComments || 'No comments yet.');
+        },
+
+        updateUI: function () {
+          this.likeCountText.setAttribute('text', 'value', `LIKE: ${this.data.likes}`);
+          this.dislikeCountText.setAttribute('text', 'value', `DISLIKE: ${this.data.dislikes}`);
+        }
+
+      });
+
+    </script>
+
+    <!-- New component for click-change-texture -->
+    <script>
+      AFRAME.registerComponent("click-change-texture", {
+        schema: { currentTexture: { type: 'string', default: 'image1' } },
+
+        init: function () {
+          this.image = document.querySelector('#plane');
+
+          this.updateTexture = (texture) => {
+            this.image.setAttribute("src", `#${texture}`);
+          };
+
+          this.image.addEventListener("click", () => {
+            this.data.currentTexture = this.data.currentTexture === 'image1' ? 'image2' : 'image1';
+            this.image.setAttribute("src", `#${this.data.currentTexture}`);
+
+            NAF.connection.broadcastDataGuaranteed('texture-changed', JSON.stringify({ 
+              type: 'texture-changed',
+              texture: this.data.currentTexture
+            }));
+
+            console.log('Broadcasting data:', { texture: this.data.currentTexture });
+          });
+
+          NAF.connection.subscribeToDataChannel('texture-changed', (senderId, dataType, data, targetId) => {
+            try {
+              const parsedData = JSON.parse(data);
+              if (parsedData.texture) {
+                this.data.currentTexture = parsedData.texture;
+                this.image.setAttribute("src", `#${this.data.currentTexture}`);
+                this.updateTexture(this.data.currentTexture);
+              }
+            } catch (e) {
+              console.error('Failed to parse texture data:', e, data);
+            }
+          });
+        },
+      });
+    </script>
+  </head>
+
+  <body>
+    <a-scene
+      light="defaultLightsEnabled:false"
+      renderer="physicallyCorrectLights:true;colorManagement:true;stencil:true;logarithmicDepthBuffer: true;"
+      networked-scene="
+        connectOnLoad: true;
+        room: contact;
+        debug: true;
+        adapter: easyrtc;
+        audio: true;
+        video: false;
+      "
+      shadow="type: pcfsoft"
+      gltf-model="meshoptDecoderPath:https://unpkg.com/meshoptimizer@0.19.0/meshopt_decoder.js"
+      raycaster="far: 100; objects: .clickable,[link];"
+      cursor="rayOrigin: mouse"
+    >
+      <a-assets>
+        <template id="avatar-template">
+          <a-entity player-info>
+            <a-entity class="model">
+              <a-text class="nametag" align="center" value="?" position="0 2.1 0" scale=".5 .5 .5"></a-text>
+            </a-entity>
+            <a-entity class="camera" position="0 1.6 0"></a-entity>
+          </a-entity>
+        </template>
+
+        <img id="thumbJapan" crossorigin="anonymous" src="https://cdn.aframe.io/link-traversal/thumbs/japan.png" />
+        <img id="thumbForest" crossorigin="anonymous" src="https://cdn.aframe.io/link-traversal/thumbs/forest.png" />
+        <a-asset-item id="my-model" src="./art_gallery.glb"></a-asset-item>
+        <img id="image1" src="./images/woman-8361816_1280.jpg" />
+        <img id="image2" src="./images/starry-sky-1948523_1280.jpg" />
+
+        <img id="image3" src="./images/oil-painting-1393556_1280.jpg" />
+        <img id="image4" src="./images/post-impressionist-1428129_1280.jpg" />
+        <img id="image5" src="./images/cyborg-8728894_1280.jpg" />
+        <img id="image6" src="./images/sculpture-2413071_1280.jpg" />
+        <img id="image7" src="./images/masterpiece-4359010_1280.jpg" />
+        <img id="image8" src="./images/masterpiece-4359011_1280.jpg" />
+        <img id="image9" src="./images/post-impressionist-1428128_1280.jpg" />
+        <img id="image10" src="./images/post-impressionist-1428132_1280.jpg" />
+        <img id="image11" src="./images/post-impressionist-1428136_1280.jpg" />
+        <img id="image12" src="./images/trees-6573251_1280.jpg" />
+        <img id="image13" src="./images/vincent-van-gogh-74018_1280.jpg" />
+        <img id="image14" src="./images/vincent-van-gogh-85799_1280.jpg" />
+        <img id="image15" src="./images/vincent-van-gogh-89422_1280.jpg" />
+        <img id="image16" src="./images/vincent-van-gogh-1923744_1280.jpg" />
+        <img id="image17" src="./images/vincent-van-gogh-86742_1280.jpg" />
+      </a-assets>
+
+      <a-entity id="scene">
+        <!-- <a-entity environment="preset:forest;shadow:true"></a-entity> -->
+        <a-entity light="type:ambient;intensity:0.5"></a-entity>
+        <a-entity gltf-model="#my-model" position="0 0.3 0" scale="1 1 1" material="transparent: false;opacity: 1.0; alphaTest: 1.0;side: double; polygonOffset: true; polygonOffsetFactor: 1; polygonOffsetUnits: 1;" override-materials></a-entity>
+        <!-- <a-mirror id="mirror" position="-4.147 1.601 0.444" rotation="0 90 0" scale="3.830 3.000 1" layers="0,3">
+          <a-box color="black" position="0 0 -0.02" scale="1.02 1.02 0.01"></a-box>
+        </a-mirror>
+        <a-text value="Selfie Spot"
+          position="-4.708 3.485 0.974"
+          rotation="0 90.550 0"
+          color="#333333"
+          width="6"
+          font="https://cdn.aframe.io/fonts/Roboto-msdf.json"></a-text> -->
+      </a-entity>
+
+      <!-- Networked syncable content (rating system) -->
+      <a-entity id="syncable-content" position="-0.237 0.261 -2.748" rotation="0 5.720 0" rate-counter>        
+        <a-box id="like-button" class="clickable" position="-0.5 0.4 -2" width="0.5" height="0.2" depth="0.2" color="#abf2ab">
+          <a-text class="like-count" value="LIKE: 0" position="0 0 0.1" align="center" scale="0.4 0.4 0.4"></a-text>
+        </a-box>
+      
+        <a-box id="dislike-button" class="clickable" position="0.5 0.4 -2" width="0.5" height="0.2" depth="0.2" color="#febebe">
+          <a-text class="dislike-count" value="DISLIKE: 0" position="0 0 0.1" align="center" scale="0.4 0.4 0.4"></a-text>
+        </a-box>
+
+        <a-box id="comment-button" class="clickable" position="0 0.4 -2" width="0.5" height="0.2" depth="0.2" color="#b0b0fc">
+          <a-text value="Comments" align="center" position="0 0 0.11" scale="0.4 0.4 0.4"></a-text>
+        </a-box>
+
+        <a-entity id="comment-list" position="0.033 0.087 -2.326" visible="false">
+          <a-plane width="1.5" height="1.6" color="white" position="0 0.5 -0.01"></a-plane>
+          <a-text id="comment-content" value="No comments yet." align="left" position="-0.72 1.2 0" scale="0.4 0.4 0.4" color="black"></a-text>
+        </a-entity>
+
+        <a-plane id="input-plane" class="clickable" width="1.5" height="0.2" color="lightgray" position="0 0.212 -2" visible="false">
+          <a-text id="input-placeholder" value="Write a comment..." align="center" position="0 0 0.01" scale="0.4 0.4 0.4" color="black"></a-text>
+        </a-plane>
+        <a-box id="submit-comment-button" class="clickable" position="0.010 0.040 -2.098" width="1.5" height="0.2" depth="0.2" color="orange" visible="false">
+          <a-text value="Write a Message" align="center" position="0 0 0.11" scale="0.4 0.4 0.4"></a-text>
+        </a-box>
+        <!-- <a-entity id="comment-list" position="0 1 -2" visible="false">
+          <a-plane width="1.5" height="1.6" color="white" position="0 0.5 -0.01"></a-plane>
+          <a-text id="comment-content" value="No comments yet." align="left" position="-0.72 1.2 0" scale="0.4 0.4 0.4" color="black"></a-text>
+        </a-entity>
+
+        <a-plane id="input-plane" class="clickable" width="1.5" height="0.2" color="lightgray" position="0 0.6 -2" visible="false">
+          <a-text id="input-placeholder" value="Write a comment..." align="center" position="0 0 0.01" scale="0.4 0.4 0.4" color="black"></a-text>
+        </a-plane>
+        <a-box id="submit-comment-button" class="clickable" position="0 0.6 -2" width="1.5" height="0.2" depth="0.2" color="orange" visible="false">
+          <a-text value="Write a Message" align="center" position="0 0 0.11" scale="0.4 0.4 0.4"></a-text>
+        </a-box> -->
+      </a-entity>
+
+      <!-- Networked image that changes texture on click -->
+      <a-entity id="networked-image" click-change-texture position="-0.394 1.824 -4.577" rotation="0 5.510 0">
+        <a-image id="plane" material="side: double; polygonOffset: true; polygonOffsetFactor: 1; polygonOffsetUnits: 1;" class="clickable" src="#image1" width="2" height="2"></a-image>
+      </a-entity>
+      <!-- <a-entity
+        particle-system="
+          preset: dust;
+          particleCount: 5000;
+          color: #FF0000, #FFFFFF;
+          size: 2;
+          maxAge: 2;
+          rotationSpeed: 0.5;
+          velocitySpread: 1 1 1;
+          opacity: 0.6;
+        "
+        position="0 1.5 -3">
+      </a-entity> -->
+      <a-entity position="4.627 1.824 -0.532" material="side: double; polygonOffset: true; polygonOffsetFactor: 1; polygonOffsetUnits: 1;" rotation="0 -84.560 0" >
+        <a-image material="side: double; polygonOffset: true; polygonOffsetFactor: 1; polygonOffsetUnits: 1;" id="plane2" src="#image3" width="2" height="2"></a-image>
+      </a-entity>
+      <a-entity position="0.372 1.824 4.619" material="side: double; polygonOffset: true; polygonOffsetFactor: 1; polygonOffsetUnits: 1;" rotation="0 5.510 0" >
+        <a-image material="side: double; polygonOffset: true; polygonOffsetFactor: 1; polygonOffsetUnits: 1;" id="plane3" src="#image4" width="2" height="2"></a-image>
+      </a-entity>
+      <a-entity position="-6.652 1.824 4.676" material="side: double; polygonOffset: true; polygonOffsetFactor: 1; polygonOffsetUnits: 1;" rotation="0 -54.340 0" >
+        <a-image material="side: double; polygonOffset: true; polygonOffsetFactor: 1; polygonOffsetUnits: 1;" id="plane4" src="#image5" width="2" height="2"></a-image>
+      </a-entity>
+      <a-entity position="-7.353 1.824 -3.333" material="side: double; polygonOffset: true; polygonOffsetFactor: 1; polygonOffsetUnits: 1;" rotation="0 66.290 0" >
+        <a-image material="side: double; polygonOffset: true; polygonOffsetFactor: 1; polygonOffsetUnits: 1;" id="plane5" src="#image6" width="2" height="2"></a-image>
+      </a-entity>
+      <a-entity position="-4.594 1.824 0.472" material="side: double; polygonOffset: true; polygonOffsetFactor: 1; polygonOffsetUnits: 1;" rotation="0 92.920 0" >
+        <a-image material="side: double; polygonOffset: true; polygonOffsetFactor: 1; polygonOffsetUnits: 1;" id="plane5" src="#image17" width="2" height="2"></a-image>
+      </a-entity>
+      <a-entity position="-4.835 1.824 -6.461" rotation="0 38.960 0" >
+        <a-image material="transparent: false; opacity: 1.0" id="plane6" src="#image7" width="2" height="2"></a-image>
+      </a-entity>
+      <a-entity position="-0.854 1.824 -8.081" rotation="0 5.560 0" >
+        <a-image material="transparent: false; opacity: 1.0" id="plane7" src="#image8" width="2" height="2"></a-image>
+      </a-entity>
+      <a-entity position="3.375 1.824 -7.387" rotation="0 -24.020 0" >
+        <a-image material="transparent: false; opacity: 1.0" id="plane8" src="#image9" width="2" height="2"></a-image>
+      </a-entity>
+      <a-entity position="6.610 1.824 -4.714" rotation="0 -54.390 0" >
+        <a-image material="transparent: false; opacity: 1.0" id="plane9" src="#image10" width="2" height="2"></a-image>
+      </a-entity>
+      <a-entity position="8.072 1.824 -0.787" rotation="0 -85.590 0" >
+        <a-image material="transparent: false; opacity: 1.0" id="plane10" src="#image11" width="2" height="2"></a-image>
+      </a-entity>
+      <a-entity position="7.402 1.824 3.354" rotation="0 -114.200 0" >
+        <a-image material="transparent: false; opacity: 1.0" id="plane11" src="#image12" width="2" height="2"></a-image>
+      </a-entity>
+      <a-entity position="4.805 1.824 6.546" rotation="0 -144.980 0" >
+        <a-image material="transparent: false; opacity: 1.0" id="plane12" src="#image13" width="2" height="2"></a-image>
+      </a-entity>
+      <a-entity position="0.808 1.824 8.054" rotation="0 -175.450 0" >
+        <a-image material="transparent: false; opacity: 1.0" id="plane13" src="#image14" width="2" height="2"></a-image>
+      </a-entity>
+      <a-entity position="-3.373 1.824 7.377" rotation="0 -203.650 0" >
+        <a-image material="transparent: false; opacity: 1.0" id="plane14" src="#image15" width="2" height="2"></a-image>
+      </a-entity>
+      <a-entity position="-8.076 1.824 0.819" rotation="0 -84.720 0" >
+        <a-image material="transparent: false; opacity: 1.0" id="plane15" src="#image16" width="2" height="2"></a-image>
+      </a-entity>
+      <a-entity
+        id="rig"
+        cursor-teleport="cameraRig: #rig; cameraHead: #player; collisionEntities: .environmentGround; ignoreEntities: .clickable,[link]"
+        simple-navmesh-constraint="navmesh:.environmentGround,.environmentDressing;fall:10;height:0;exclude:.navmesh-hole;"
+        movement-controls="fly:false;controls: gamepad, trackpad, keyboard, nipple;"
+        spawn-in-circle="radius:1"
+        networked="template:#avatar-template;attachTemplateToLocal:false"
+        player-info
+      >
+        <a-entity id="player" class="camera" camera="near: 0.1; far: 1000" position="0 1.6 0" look-controls>
+          <a-box obb-collider visible="false" height="0.4" depth="0.4" width="0.4"></a-box>
+        </a-entity>
+        <a-entity
+          id="left-hand"
+          networked-hand-controls="hand: left"
+          networked="template: #left-hand-default-template"
+          laser-controls="hand: left"
+          raycaster="showLine: true; far: 100; lineColor: white; objects: .clickable; interval:100;"
+          blink-controls="rotateOnTeleport: false; cameraRig: #rig; teleportOrigin: #player; collisionEntities: .navmesh;"
+        ></a-entity>
+        <a-entity
+          id="right-hand"
+          networked-hand-controls="hand:right"
+          networked="template:#right-hand-default-template"
+          laser-controls="hand: right"
+          raycaster="showLine: true; far: 100; lineColor: white; objects: .clickable; interval:100;"
+          blink-controls="rotateOnTeleport: false; cameraRig: #rig; teleportOrigin: #player; collisionEntities: .navmesh;"
+        ></a-entity>
+      </a-entity>
+    </a-scene>
+  </body>
+</html>
